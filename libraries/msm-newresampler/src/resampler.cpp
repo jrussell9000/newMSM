@@ -109,13 +109,21 @@ std::vector<std::map<int,double>> Resampler::get_adaptive_barycentric_weights(co
                 adapt_weights[newNode] = reverse_reorder[newNode];
 
             for (auto iter = adapt_weights[newNode].begin();
-                 iter != adapt_weights[newNode].end(); ++iter) {
+                 iter != adapt_weights[newNode].end(); ++iter)
                 //begin area correction by multiplying by target node calc_area
                 iter->second *= newAreas[newNode];//begin the process of calc_area correction by multiplying by gathering node areas
-                correction[iter->first] += iter->second;//now, sum the scattering weights to prepare for first normalization
-            }
         }
     }
+
+    // Sum the scattering weights to prepare for first normalization. This scatters into
+    // correction[oldNode], which many newNodes share, so it must not run in parallel: a
+    // parallel += here loses updates nondeterministically (and, when the surviving update is
+    // a zero weight, leaves correction == 0 and produces NaN weights below). Serial, in
+    // newNode order, gives the same result as a single-threaded run for any nthreads.
+    // Excluded newNodes have empty adapt_weights, so they contribute nothing, as before.
+    for (int newNode = 0; newNode < numNewNodes; ++newNode)
+        for (const auto& iter : adapt_weights[newNode])
+            correction[iter.first] += iter.second;
 
     #pragma omp parallel for num_threads(nthreads)
     for (int newNode = 0; newNode < numNewNodes; ++newNode)
