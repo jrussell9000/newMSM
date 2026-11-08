@@ -189,28 +189,40 @@ double NonLinearSRegDiscreteCostFunction::computeTripletCost(int triplet, int la
 
 double NonLinearSRegDiscreteCostFunction::computePairwiseCost(int pair, int labelA, int labelB) {
 
-    newresampler::Point v0 = _CPgrid.get_coord(_pairs[2*pair]);
-    newresampler::Point v1 = _CPgrid.get_coord(_pairs[2*pair+1]);
+    const int nodeA = _pairs[2*pair], nodeB = _pairs[2*pair+1];
 
-    NEWMAT::Matrix R1 = estimate_rotation_matrix(v0,(*ROTATIONS)[_pairs[2*pair]]*_labels[labelA]);
-    NEWMAT::Matrix R2 = estimate_rotation_matrix(v1,(*ROTATIONS)[_pairs[2*pair+1]]*_labels[labelB]);
+    const newresampler::Point v0 = _CPgrid.get_coord(nodeA);
+    const newresampler::Point v1 = _CPgrid.get_coord(nodeB);
+    const newresampler::Point deformedA = (*ROTATIONS)[nodeA]*_labels[labelA];
+    const newresampler::Point deformedB = (*ROTATIONS)[nodeB]*_labels[labelB];
+
+    NEWMAT::Matrix R1 = estimate_rotation_matrix(v0,deformedA);
+    NEWMAT::Matrix R2 = estimate_rotation_matrix(v1,deformedB);
     NEWMAT::Matrix R_diff = R1.t() * R2;
 
     const double theta_MVD = 2 * asin(MVDmax/(2*RAD));
     const double theta = acos((R_diff.Trace()-1)/2);
     double cost = 0.0;
 
-    _CPgrid.set_coord(_pairs[2*pair],(*ROTATIONS)[_pairs[2*pair]]*_labels[labelA]);
-    _CPgrid.set_coord(_pairs[2*pair+1],(*ROTATIONS)[_pairs[2*pair+1]]*_labels[labelB]);
-
     if(fabs(1 - (R_diff.Trace() - 1) / 2) > EPSILON)
     {
-        for(auto j = _CPgrid.tIDbegin(_pairs[2*pair]); j != _CPgrid.tIDend(_pairs[2*pair]); j++) {
-            if((_oCPgrid.get_triangle(*j).normal() | _CPgrid.get_triangle(*j).normal()) < 0.0) { //folding
-                _CPgrid.set_coord(_pairs[2*pair  ],v0);
-                _CPgrid.set_coord(_pairs[2*pair+1],v1);
-                return FOLDING;
+        // Folding check on the triangles around nodeA, with nodeA and nodeB moved to their
+        // labelled positions. The deformed normal is computed locally -- same vertex order and
+        // the same arithmetic as Triangle::normal() -- rather than by moving the shared _CPgrid
+        // vertices with set_coord and restoring them: Fusion::optimize calls this from an
+        // `omp parallel for` over pairs, and pairs share vertices, so in-place moves raced --
+        // other threads saw moved (or torn) coordinates, and a "restore" could write back
+        // another thread's moved position. No allocation here: this is a hot path.
+        for(auto j = _CPgrid.tIDbegin(nodeA); j != _CPgrid.tIDend(nodeA); j++) {
+            newresampler::Point p[3];
+            for(int i = 0; i < 3; i++) {
+                const int vid = _CPgrid.get_triangle_vertexID(*j, i);
+                p[i] = (vid == nodeA) ? deformedA : (vid == nodeB) ? deformedB : _CPgrid.get_coord(vid);
             }
+            newresampler::Point deformed_normal = (p[2] - p[0]) * (p[1] - p[0]);
+            deformed_normal.normalize();
+            if((_oCPgrid.get_triangle(*j).normal() | deformed_normal) < 0.0) //folding
+                return FOLDING;
         }
 
         if(_rexp == 1)
@@ -219,14 +231,12 @@ double NonLinearSRegDiscreteCostFunction::computePairwiseCost(int pair, int labe
             cost = _reglambda * std::pow(((sqrt(2) * theta) / theta_MVD),_rexp);
     }
 
-    _CPgrid.set_coord(_pairs[2*pair  ],v0);
-    _CPgrid.set_coord(_pairs[2*pair+1],v1);
-
     return cost;
 }
 
 void NonLinearSRegDiscreteCostFunction::computePairwiseCosts(const int *pairs) {
-    //Note: can't run parallel as computePairwiseCost() changes class scope CP grid mesh geometry.
+    //Note: computePairwiseCost() no longer modifies the class-scope CP grid, so this loop could be
+    //parallelised; it is left serial here to keep this change to the race fix only.
     for (int i = 0; i < m_num_pairs; i++)
         for (unsigned int j = 0; j < _labels.size(); j++)
             for (unsigned int k = 0; k < _labels.size(); k++)
