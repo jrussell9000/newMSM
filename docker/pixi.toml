@@ -1,0 +1,21 @@
+# Build-time environment for the newmsm image. NOTHING in here ships: the Dockerfile's final
+# stage copies only the newmsm binary and the shared libraries it actually loads.
+[workspace]
+name = "newmsm-build"
+channels = ["https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/public/", "conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+# FSL's make system (FSLCONFDIR) and the libraries newMSM links against.
+fsl-base = "*"
+fsl-armawrap = "*"
+fsl-miscmaths = "*"
+fsl-newmesh = "*"
+fsl-newimage = "*"
+cxx-compiler = "*"
+make = "*"
+patchelf = "*"
+# Reference BLAS/LAPACK instead of OpenBLAS: newMSM only calls ~15 routines, on small
+# matrices, and OpenBLAS's all-CPU dynamic-arch build is ~40 MB of the runtime closure.
+libblas = { version = "*", build = "*netlib" }
+liblapack = { version = "*", build = "*netlib" }

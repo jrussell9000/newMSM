@@ -36,6 +36,20 @@ This fork carries these bundled sources and licence files exactly as upstream do
 no new third-party code. You are responsible for complying with each component's licence; the
 authoritative terms are in the files above.
 
+## Container image (branch `cloudpipe/image`)
+
+[`docker/Dockerfile`](docker/Dockerfile) builds a small distroless image holding only the
+`newmsm` binary, the shared libraries it loads, and the licence texts above plus FSL's
+(`/opt/newmsm/licenses`). It is what the [cloudpipe](https://github.com/jrussell9000/cloudpipe)
+pipeline's newMSM surface-registration step runs. Build it from the repository root:
+
+    docker build -f docker/Dockerfile -t newmsm .
+
+No prebuilt image is published: it contains FSL components, so build it yourself, for
+non-commercial use, and push it only to a private registry. The entrypoint is the binary, so pass
+`newmsm`'s arguments directly. newMSM reads its thread count from the config file
+(`--numthreads=N`), not the command line; set `OMP_NUM_THREADS` to match.
+
 Multimodal Surface Matching (MSM) is an advanced tool for cortical surface mapping, which has been shown to outperform competing methods for the alignment of multimodal data. MSM has been developed and tested using FreeSurfer extracted surfaces, however, in principle the tool will work with any cortical surface extraction method provided the surfaces can be mapped to the sphere. The key advantage of the method is that alignment may be driven using a wide variety of univariate (sulcal depth, curvature, myelin), multivariate (Task fMRI, or Resting State Networks) or multimodal (combinations of folding, myelin and fMRI) feature sets.
 
 The main MSM tool is currently run from the command line using the program `newmsm`. This enables fast alignment of spherical cortical surfaces by utilising discrete optimisation framework, which significantly reduces the search space of possible deformations for each vertex, and allows flexibility with regards to the choice of similarity metric used to match the images.
