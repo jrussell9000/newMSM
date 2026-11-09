@@ -1,5 +1,37 @@
 # newMSM - the new version of the Multimodal Surface Matching software
 
+> **This is a fork** of [rbesenczi/newMSM](https://github.com/rbesenczi/newMSM). Branch
+> `fix/resampler-correction-race` adds two fixes for OpenMP data races that made results differ
+> from run to run above one thread (`--numthreads`). With them, multithreaded runs are
+> bit-identical to single-threaded ones:
+> - `1d0f44a`: a lost-update race in the adaptive barycentric resampler, which also caused NaN.
+> - `ce2c6d0`: the pairwise cost moved shared control-grid vertices inside a parallel loop.
+>
+> The fork is otherwise identical to upstream.
+
+## Licensing — read before using this software
+
+newMSM's own source code is MIT-licensed (see [LICENSE](LICENSE)). Building or running it,
+however, depends on components under other, more restrictive licences, and **you need an FSL
+licence to use it**.
+
+- **FSL libraries.** newMSM is built against, and links, FSL libraries: `fsl-miscmaths`,
+  `fsl-newmesh`, `fsl-newimage`, `fsl-utils`, `fsl-armawrap` and their dependencies, from the
+  FSL conda channel. Any build or binary of newMSM therefore contains FSL components, and using
+  it requires accepting the [FSL licence](https://fsl.fmrib.ox.ac.uk/fsl/docs/license.html).
+  That licence is free for non-commercial use, and binaries containing FSL must not be
+  redistributed publicly.
+- **FastPD** (`libraries/msm-newmeshreg/include/FastPD/`, N. Komodakis et al.). Its header says
+  it is for research and non-commercial purposes only and is protected by pending patent
+  applications.
+- **ELC** (`libraries/msm-newmeshreg/include/ELC/`, H. Ishikawa). Its header says it may be used
+  for research purposes only, and that the software and its derivatives must not be publicly
+  distributed without the author's prior consent.
+
+This fork carries these bundled sources exactly as upstream does and adds no new third-party
+code. You are responsible for complying with each component's licence; the authoritative terms
+are in the files themselves and at the links above.
+
 Multimodal Surface Matching (MSM) is an advanced tool for cortical surface mapping, which has been shown to outperform competing methods for the alignment of multimodal data. MSM has been developed and tested using FreeSurfer extracted surfaces, however, in principle the tool will work with any cortical surface extraction method provided the surfaces can be mapped to the sphere. The key advantage of the method is that alignment may be driven using a wide variety of univariate (sulcal depth, curvature, myelin), multivariate (Task fMRI, or Resting State Networks) or multimodal (combinations of folding, myelin and fMRI) feature sets.
 
 The main MSM tool is currently run from the command line using the program `newmsm`. This enables fast alignment of spherical cortical surfaces by utilising discrete optimisation framework, which significantly reduces the search space of possible deformations for each vertex, and allows flexibility with regards to the choice of similarity metric used to match the images.
